@@ -12,6 +12,7 @@ import io.github.hyperisland.compose.theme.PREF_CARD_GLASS_TRANSPARENCY
 import io.github.hyperisland.compose.theme.PREF_FLOATING_NAVIGATION_BAR
 import io.github.hyperisland.compose.theme.PREF_LIQUID_GLASS_NAVIGATION_BAR
 import io.github.hyperisland.compose.theme.PREF_NAVIGATION_BAR_STYLE
+import io.github.hyperisland.compose.theme.PREF_TOP_BAR_GLASS_ENABLED
 import io.github.hyperisland.compose.theme.PREF_UI_GLASS_BLUR_RADIUS
 import io.github.hyperisland.compose.theme.PREF_UI_GLASS_ENABLED
 import io.github.hyperisland.compose.theme.PREF_UI_GLASS_TRANSPARENCY
@@ -173,6 +174,7 @@ internal val ConfigSectionGroups: List<ConfigSection> = listOf(
                 exactKeys = listOf(
                     "pref_island_outline_mode",
                     "pref_focus_outline_mode",
+                    "pref_small_island_glow",
                     "pref_outer_glow_range",
                     "pref_outer_glow_single_color",
                     "pref_outer_glow_base_color",
@@ -224,6 +226,7 @@ internal val ConfigSectionGroups: List<ConfigSection> = listOf(
             PREF_NAVIGATION_BAR_GLASS_ENABLED,
             PREF_NAVIGATION_BAR_GLASS_TRANSPARENCY,
             PREF_NAVIGATION_BAR_GLASS_BLUR_RADIUS,
+            PREF_TOP_BAR_GLASS_ENABLED,
             PREF_WALLPAPER_BLUR_RADIUS,
             PREF_WALLPAPER_BRIGHTNESS,
             PREF_WALLPAPER_DARK_BRIGHTNESS,
@@ -368,7 +371,7 @@ internal val ConfigSectionGroups: List<ConfigSection> = listOf(
             ),
             ConfigSection(
                 id = "ext_settings",
-                titleRes = R.string.hook_scope_settings,
+                titleRes = R.string.system_settings,
                 keyPrefixes = listOf("pref_settings_home_entry"),
             ),
             ConfigSection(
