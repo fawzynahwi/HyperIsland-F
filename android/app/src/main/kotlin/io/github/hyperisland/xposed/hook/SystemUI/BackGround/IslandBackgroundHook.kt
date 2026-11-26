@@ -1,7 +1,5 @@
-package io.github.hyperisland.xposed.hook.SystemUI.BackGround
+package io.github.hyperisland.xposed.hook
 
-import android.content.Context
-import android.content.res.Resources
 import io.github.hyperisland.xposed.diagnostics.profiledHook
 
 import android.graphics.*
@@ -12,13 +10,11 @@ import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup
 import io.github.hyperisland.xposed.ConfigManager
-import io.github.hyperisland.xposed.hook.BaseHook
-import io.github.hyperisland.xposed.hook.IslandBackgroundFile
 import io.github.hyperisland.xposed.hook.SystemUI.BackGround.Blur.IslandBlurRuntime
 import io.github.hyperisland.xposed.hook.SystemUI.BackGround.Blur.MaskBlurCleanup
 import io.github.hyperisland.xposed.hook.SystemUI.BackGround.Blur.model.IslandType as BlurIslandType
 import io.github.hyperisland.xposed.hook.SystemUI.BackGround.Blur.model.MaterialType
-import io.github.hyperisland.xposed.hook.SystemUI.outline.IslandOutlineHook
+import io.github.hyperisland.xposed.hook.SystemUI.IslandOutlineHook
 import io.github.hyperisland.xposed.hook.SystemUI.SoftGlass.SoftGlassController
 import io.github.hyperisland.xposed.utils.HookUtils
 import io.github.libxposed.api.XposedModule
@@ -30,7 +26,6 @@ import java.lang.reflect.Method
 import java.util.Collections
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.max
 
 /**
  * Hook 超级岛背景视图，替换默认背景 Drawable 为自定义图片或 GIF。
@@ -831,7 +826,6 @@ object IslandBackgroundHook : BaseHook() {
             method.isAccessible = true
             module.profiledHook("IslandBackgroundHook", method).intercept { chain ->
                 val result = chain.proceed()
-                if (!anyManagedOuterVisual()) return@intercept result
                 runCatching { viewField.get(chain.thisObject) }
                     .getOrNull()
                     ?.let { clearManagedLayers(it, access) }
@@ -904,7 +898,6 @@ object IslandBackgroundHook : BaseHook() {
                 method.isAccessible = true
                 module.profiledHook("IslandBackgroundHook", method).intercept { chain ->
                     val result = chain.proceed()
-                    if (!anyManagedOuterVisual()) return@intercept result
                     runCatching { viewField.get(chain.thisObject) }
                         .getOrNull()
                         ?.let { clearManagedLayers(it, access) }
@@ -932,10 +925,11 @@ object IslandBackgroundHook : BaseHook() {
         // shrinking the previous island after entering them, so continue clearing the masks for
         // that previous SMALL/BIG/EXPAND type until the View instance is discarded.
         val type = resolvedType ?: managedContentTypes[contentView] ?: return
-        if (!shouldClearSharedMask(type)) return
+        if (!anyManagedOuterVisual()) return
 
         val container = runCatching { access.containerMethod.invoke(contentView) as? View }
-            .getOrNull() ?: return
+            .getOrNull()
+        if (container == null || !shouldClearSharedMask(type)) return
         clearMaskForView(container, access.cleanup)
 
         // OS3 did not use island_mask as the final per-frame visual writer. OS4 does, and its
@@ -1132,7 +1126,7 @@ object IslandBackgroundHook : BaseHook() {
      */
     private fun loadCustomDrawable(
         type: IslandType,
-        context: Context?,
+        context: android.content.Context?,
         module: XposedModule,
         stokeWidth: Int = 0,
         allowBlurFallback: Boolean = false,
@@ -1206,7 +1200,7 @@ object IslandBackgroundHook : BaseHook() {
      * ★ Bitmap 缓存复用，每次创建新的 Drawable 实例（Drawable 不可跨 View 共享）。
      */
     private fun loadBlackDrawable(
-        context: Context?,
+        context: android.content.Context?,
         module: XposedModule,
         stokeWidth: Int = 0
     ): Drawable? {
@@ -1240,7 +1234,7 @@ object IslandBackgroundHook : BaseHook() {
      */
     private fun decodeFile(
         file: File,
-        context: Context?,
+        context: android.content.Context?,
         module: XposedModule,
         stokeWidth: Int = 0
     ): Drawable? {
@@ -1255,7 +1249,7 @@ object IslandBackgroundHook : BaseHook() {
             val srcH = options.outHeight
             if (srcW <= 0 || srcH <= 0) return null
 
-            val displayMetrics = Resources.getSystem().displayMetrics
+            val displayMetrics = android.content.res.Resources.getSystem().displayMetrics
             val maxTargetSize = TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, 200f, displayMetrics
             ).toInt().coerceAtLeast(512)
@@ -1274,7 +1268,7 @@ object IslandBackgroundHook : BaseHook() {
 
     private fun decodeAnimatedGif(
         file: File,
-        context: Context?,
+        context: android.content.Context?,
         module: XposedModule,
         stokeWidth: Int = 0
     ): Drawable? {
@@ -1286,7 +1280,7 @@ object IslandBackgroundHook : BaseHook() {
                 val size = info.size
                 gifWidth = size.width
                 gifHeight = size.height
-                val displayMetrics = Resources.getSystem().displayMetrics
+                val displayMetrics = android.content.res.Resources.getSystem().displayMetrics
                 val maxTargetSize = TypedValue.applyDimension(
                     TypedValue.COMPLEX_UNIT_DIP, 200f, displayMetrics
                 ).toInt().coerceAtLeast(512)
@@ -1314,14 +1308,14 @@ object IslandBackgroundHook : BaseHook() {
      * 获取圆角半径。
      * ★ 结果缓存，运行时圆角不会变，避免每次都做资源查找。
      */
-    private fun getCornerRadius(context: Context?): Float {
+    private fun getCornerRadius(context: android.content.Context?): Float {
         cachedCornerRadius?.let { return it }
         val radius = computeCornerRadius(context)
         cachedCornerRadius = radius
         return radius
     }
 
-    private fun computeCornerRadius(context: Context?): Float {
+    private fun computeCornerRadius(context: android.content.Context?): Float {
         if (context != null) {
             try {
                 val res = context.resources
@@ -1334,7 +1328,7 @@ object IslandBackgroundHook : BaseHook() {
         }
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP, 30f,
-            Resources.getSystem().displayMetrics
+            android.content.res.Resources.getSystem().displayMetrics
         )
     }
 
@@ -1431,7 +1425,7 @@ object IslandBackgroundHook : BaseHook() {
             clipPath.reset()
             clipPath.addRoundRect(rect, cornerRadius, cornerRadius, Path.Direction.CW)
 
-            val scale = max(
+            val scale = kotlin.math.max(
                 rect.width() / bitmap.width.toFloat(),
                 rect.height() / bitmap.height.toFloat()
             )
@@ -1515,7 +1509,7 @@ object IslandBackgroundHook : BaseHook() {
             val imageW = if (sourceWidth > 0) sourceWidth else child.intrinsicWidth
             val imageH = if (sourceHeight > 0) sourceHeight else child.intrinsicHeight
             if (imageW > 0 && imageH > 0) {
-                val scale = max(
+                val scale = kotlin.math.max(
                     rect.width() / imageW.toFloat(),
                     rect.height() / imageH.toFloat()
                 )

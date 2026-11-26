@@ -10,7 +10,7 @@ import io.github.hyperisland.compose.component.SettingsAction
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 
-internal enum class AppearanceSection { Size, Background, Text, Icon, Outline, Animation, MoreUi }
+internal enum class AppearanceSection { Size, Background, Text, Icon, Outline, Animation, Brackets, MoreUi }
 
 @Composable
 internal fun AppearanceOverviewPage(
@@ -41,6 +41,7 @@ private fun appearanceSectionTitle(section: AppearanceSection): String = stringR
         AppearanceSection.Icon -> R.string.appearance_icon
         AppearanceSection.Outline -> R.string.appearance_outline
         AppearanceSection.Animation -> R.string.appearance_animation
+        AppearanceSection.Brackets -> R.string.appearance_brackets
         AppearanceSection.MoreUi -> R.string.other
     },
 )
@@ -54,6 +55,7 @@ private fun appearanceSectionSummary(section: AppearanceSection): String = strin
         AppearanceSection.Icon -> R.string.appearance_icon_summary
         AppearanceSection.Outline -> R.string.appearance_outline_summary
         AppearanceSection.Animation -> R.string.appearance_animation_summary
+        AppearanceSection.Brackets -> R.string.appearance_brackets_summary
         AppearanceSection.MoreUi -> R.string.appearance_more_ui
     },
 )

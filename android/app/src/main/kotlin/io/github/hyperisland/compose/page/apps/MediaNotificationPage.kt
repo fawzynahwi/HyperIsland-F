@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -37,10 +38,11 @@ internal fun MediaNotificationPage(
     }
     var activeColorTarget by remember { mutableStateOf<ColorTarget?>(null) }
     var selectedColor by remember { mutableStateOf(Color.Red) }
-    val defaults = prefs.defaultConfigSettings()
+    val defaultOuterGlow = prefs.getString(PREF_DEFAULT_OUTER_GLOW, TRI_STATE_OFF)
+    val defaultIslandOuterGlow = prefs.getString(PREF_DEFAULT_ISLAND_OUTER_GLOW, TRI_STATE_OFF)
     val modes = remember { listOf(TRI_STATE_DEFAULT, TRI_STATE_ON, TRI_STATE_OFF, TRI_STATE_FOLLOW_DYNAMIC) }
-    val outerGlowLabels = glowModeLabels(defaults.outerGlow)
-    val islandOuterGlowLabels = glowModeLabels(defaults.islandOuterGlow)
+    val outerGlowLabels = glowModeLabels(defaultOuterGlow)
+    val islandOuterGlowLabels = glowModeLabels(defaultIslandOuterGlow)
 
     fun updateSettings(value: MediaNotificationSettings) {
         draft = value
@@ -91,12 +93,14 @@ internal fun MediaNotificationPage(
             }
         }
         item {
-            SectionTitle(stringResource(R.string.outer_glow))
+            SectionTitle(
+                stringResource(R.string.glow_section, stringResource(R.string.focus_notification)),
+            )
             AppCard {
                 PageDropdownPreference(
                     items = outerGlowLabels,
                     selectedIndex = modes.indexOf(draft.outerGlow).coerceAtLeast(0),
-                    title = stringResource(R.string.focus_outer_glow),
+                    title = stringResource(R.string.outer_glow),
                     onSelectedIndexChange = { index -> updateSettings(draft.copy(outerGlow = modes[index])) },
                     enabled = draft.enabled,
                     insideMargin = MEDIA_ITEM_MARGIN,
@@ -112,10 +116,17 @@ internal fun MediaNotificationPage(
                         },
                     )
                 }
+            }
+        }
+        item {
+            SectionTitle(
+                stringResource(R.string.glow_section, stringResource(R.string.enable_island)),
+            )
+            AppCard {
                 PageDropdownPreference(
                     items = islandOuterGlowLabels,
                     selectedIndex = modes.indexOf(draft.islandOuterGlow).coerceAtLeast(0),
-                    title = stringResource(R.string.island_outer_glow),
+                    title = stringResource(R.string.outer_glow),
                     onSelectedIndexChange = { index ->
                         updateSettings(draft.copy(islandOuterGlow = modes[index]))
                     },
@@ -163,13 +174,17 @@ internal fun MediaNotificationPage(
 
 @Composable
 private fun glowModeLabels(defaultMode: String): List<String> = listOf(
-    defaultGlowLabel(defaultMode),
+    stringResource(
+        if (defaultMode == TRI_STATE_ON) R.string.default_on else R.string.default_off,
+    ),
     stringResource(R.string.enabled_option),
     stringResource(R.string.disabled_option),
     stringResource(R.string.follow_dynamic_color),
 )
 
 private val MEDIA_ITEM_MARGIN = PaddingValues(horizontal = 18.dp, vertical = 14.dp)
+private const val PREF_DEFAULT_OUTER_GLOW = "pref_default_outer_glow"
+private const val PREF_DEFAULT_ISLAND_OUTER_GLOW = "pref_default_island_outer_glow"
 private const val TRI_STATE_DEFAULT = "default"
 private const val TRI_STATE_ON = "on"
 private const val TRI_STATE_OFF = "off"

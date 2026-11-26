@@ -33,12 +33,11 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -79,10 +78,8 @@ import androidx.navigationevent.NavigationEventHandler
 import androidx.navigationevent.findViewTreeNavigationEventDispatcherOwner
 import io.github.hyperisland.R
 import io.github.hyperisland.compose.component.AppActionButton
-import io.github.hyperisland.compose.component.AppModalIconButton
 import io.github.hyperisland.compose.component.AppTextField
 import io.github.hyperisland.compose.component.PageSearchField
-import io.github.hyperisland.compose.component.PageTabRow
 import io.github.hyperisland.compose.component.AppCard
 import io.github.hyperisland.compose.component.AppBottomSheet
 import io.github.hyperisland.compose.component.AppDialog
@@ -129,6 +126,7 @@ import top.yukonga.miuix.kmp.basic.DropdownEntry
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
@@ -262,24 +260,6 @@ private fun presetGridColumns(widthDp: Int, heightDp: Int): GridCells {
     return GridCells.Fixed(maxOf(base, needed))
 }
 
-/**
- * 顶部分段标签：社区列表（按下载量 / 按时间）+ 我的本地预设。
- *
- * 取代了原来的「排序方式」二级菜单——排序意图直接摆到顶栏，一次点击即可切换；
- * [order] 是各自的分段内排序规则，「我的」按时间倒序（本地预设通常就是最近改的那条最有用）。
- */
-private enum class PresetTab(@StringRes val labelRes: Int, val order: PresetSortOrder) {
-    Hot(R.string.preset_tab_hot, PresetSortOrder.Downloads),
-    New(R.string.preset_tab_new, PresetSortOrder.Date),
-    Mine(R.string.preset_tab_mine, PresetSortOrder.Date),
-}
-
-/** 当前标签下要展示的数据源：社区取云端列表，「我的」取本地预设。 */
-private fun PresetTab.sourceOf(
-    local: List<ConfigPreset>,
-    cloud: List<ConfigPreset>,
-): List<ConfigPreset> = if (this == PresetTab.Mine) local else cloud
-
 @Composable
 private fun ResetConfigDialog(
     show: Boolean,
@@ -396,8 +376,7 @@ private object PresetHubStatusState {
 /**
  * 一键配置预设页面。
  *
- * 顶部分段标签「热门 / 最新 / 我的」切换数据源：前两者是云端（HyperIsland-Hub）社区列表，
- * 分别按下载量、时间排序；「我的」是本地预设。顶栏 More 菜单只保留新建配置 / 导入 / 重置配置。
+ * 本地 + 云端（HyperIsland-Hub）预设统一展示。顶栏 More 菜单可新建配置 / 切换排序；
  * 点击卡片打开应用配置 bottom sheet，云端预设会在打开时下载正文。
  *
  * 布局：手机保持原样（128dp 自适应，通常 2 列）；平板等宽屏竖屏 3 列、横屏 4 列，
@@ -407,8 +386,6 @@ private object PresetHubStatusState {
 internal fun PresetConfigPage(
     prefs: FlutterPrefsRepository,
     onBack: () -> Unit,
-    presetImportId: String?,
-    onPresetImportOpened: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -443,13 +420,8 @@ internal fun PresetConfigPage(
     }
 
     var reload by remember { mutableIntStateOf(0) }
-    val pagerState = rememberPagerState(
-        initialPage = PresetTab.Hot.ordinal,
-        pageCount = { PresetTab.entries.size },
-    )
-    fun selectTab(target: PresetTab) {
-        scope.launch { pagerState.animateScrollToPage(target.ordinal) }
-    }
+    // 默认按下载量排序：云端预设里下载量最能反映「用的人多」，比按时间或名称更有参考价值。
+    var sortOrder by remember { mutableStateOf(PresetSortOrder.Downloads) }
     val localPresets = remember(reload, context) { PresetStore.loadLocal(context) }
     val cloudPresets = PresetCloudState.presets
 
@@ -576,8 +548,6 @@ internal fun PresetConfigPage(
                 )
                 PresetStore.saveLocal(context, local)
                 reload++
-                // 导入进来的是本地预设，切到「我的」才看得到。
-                selectTab(PresetTab.Mine)
                 scope.launch {
                     snackbarState.showSnackbar(context.getString(R.string.preset_import_success, local.title))
                 }
@@ -592,29 +562,24 @@ internal fun PresetConfigPage(
         refreshHubStatuses(force = false)
     }
 
+    val localSorted = remember(localPresets, sortOrder) { sortPresets(localPresets, sortOrder) }
+    val otherSorted = remember(cloudPresets, sortOrder) {
+        sortPresets(cloudPresets, sortOrder)
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     val keyword = searchQuery.trim()
+    val localFiltered = remember(localSorted, keyword) {
+        if (keyword.isBlank()) localSorted else localSorted.filter { it.matchesQuery(keyword) }
+    }
+    val otherFiltered = remember(otherSorted, keyword) {
+        if (keyword.isBlank()) otherSorted else otherSorted.filter { it.matchesQuery(keyword) }
+    }
 
     var showNewSheet by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
     var applyTarget by remember { mutableStateOf<ConfigPreset?>(null) }
     var applySheetShown by remember { mutableStateOf(false) }
-    var browserImport by remember { mutableStateOf(false) }
-    LaunchedEffect(presetImportId) {
-        val id = presetImportId ?: return@LaunchedEffect
-        browserImport = true
-        applyTarget = ConfigPreset(
-            id = HubClient.cloudKey(id),
-            title = "",
-            content = "",
-            author = "",
-            downloads = 0,
-            local = false,
-            sections = emptyMap(),
-        )
-        applySheetShown = true
-        onPresetImportOpened(id)
-    }
     // 「修改配置」的目标（新建配置 sheet 的复用入口）。
     var modifyTarget by remember { mutableStateOf<ConfigPreset?>(null) }
     var modifySheetShown by remember { mutableStateOf(false) }
@@ -631,13 +596,16 @@ internal fun PresetConfigPage(
     }
 
     val newConfigLabel = stringResource(R.string.preset_new_config)
-    val importLabel = stringResource(R.string.import_from_clipboard)
+    val importLabel = stringResource(R.string.preset_import_clipboard)
     val resetLabel = stringResource(R.string.preset_reset_config)
+    val sortLabel = stringResource(R.string.preset_sort)
+    val nameLabel = stringResource(R.string.preset_sort_name)
+    val downloadsLabel = stringResource(R.string.preset_sort_downloads)
+    val dateLabel = stringResource(R.string.preset_sort_date)
     val menuLabel = stringResource(R.string.list_actions)
     val menuAnchor = rememberGlassPopupAnchor()
     var menuExpanded by remember { mutableStateOf(false) }
-    // 排序已改为顶部分段标签，菜单只留「新建 / 导入 / 重置」三个动作。
-    val menuEntries = remember(newConfigLabel, importLabel, resetLabel) {
+    val menuEntries = remember(newConfigLabel, importLabel, resetLabel, sortLabel, nameLabel, downloadsLabel, dateLabel, sortOrder) {
         listOf(
             DropdownEntry(
                 items = listOf(
@@ -646,13 +614,71 @@ internal fun PresetConfigPage(
                     DropdownItem(text = resetLabel, onClick = { showResetDialog = true }),
                 ),
             ),
+            DropdownEntry(
+                items = listOf(
+                    DropdownItem(
+                        text = sortLabel,
+                        children = listOf(
+                            DropdownItem(
+                                text = nameLabel,
+                                selected = sortOrder == PresetSortOrder.Name,
+                                onClick = { sortOrder = PresetSortOrder.Name },
+                            ),
+                            DropdownItem(
+                                text = downloadsLabel,
+                                selected = sortOrder == PresetSortOrder.Downloads,
+                                onClick = { sortOrder = PresetSortOrder.Downloads },
+                            ),
+                            DropdownItem(
+                                text = dateLabel,
+                                selected = sortOrder == PresetSortOrder.Date,
+                                onClick = { sortOrder = PresetSortOrder.Date },
+                            ),
+                        ),
+                    ),
+                ),
+            ),
         )
+    }
+
+    val presetItems: LazyGridScope.() -> Unit = {
+        // 本地配置置顶。上传过的显示云端下载量（没上传那栏没有意义）。
+        items(localFiltered, key = { it.id }) { preset ->
+            PresetConfigCard(
+                preset = preset,
+                showDownloads = preset.hubId.isNotBlank(),
+                wide = wideScreen,
+                badge = preset.presetBadgeSpec(hubCachedVersions[preset.id])
+                    ?.let { PresetCardBadge(it.icon, presetBadgeColor(it.tone)) },
+                onClick = {
+                    applyTarget = preset
+                    applySheetShown = true
+                },
+            )
+        }
+        if (localFiltered.isNotEmpty() && otherFiltered.isNotEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            }
+        }
+        items(otherFiltered, key = { it.id }) { preset ->
+            PresetConfigCard(
+                preset = preset,
+                showDownloads = true,
+                wide = wideScreen,
+                badge = preset.presetBadgeSpec(hubCachedVersions[preset.id])
+                    ?.let { PresetCardBadge(it.icon, presetBadgeColor(it.tone)) },
+                onClick = {
+                    applyTarget = preset
+                    applySheetShown = true
+                },
+            )
+        }
     }
 
     DetailGridPage(
         title = stringResource(R.string.preset_page_title),
         onBack = onBack,
-        pagerState = pagerState,
         columns = presetColumns,
         actions = {
             val hapticFeedback = LocalHapticFeedback.current
@@ -675,21 +701,12 @@ internal fun PresetConfigPage(
             }
         },
         topBarContent = {
-            // 分段标签在搜索框之上：切换「热门 / 最新 / 我的」一步到位，不再走 More 菜单的二级排序。
-            Column(modifier = Modifier.fillMaxWidth()) {
-                PageTabRow(
-                    tabs = PresetTab.entries.map { stringResource(it.labelRes) },
-                    selectedIndex = pagerState.currentPage,
-                    onSelect = { selectTab(PresetTab.entries[it]) },
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                )
-                PageSearchField(
-                    label = stringResource(R.string.preset_search),
-                    query = searchQuery,
-                    onQueryChange = { searchQuery = it },
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
-                )
-            }
+            PageSearchField(
+                label = stringResource(R.string.preset_search),
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+            )
         },
         snackbarHost = { SnackbarHost(snackbarState) },
         isRefreshing = PresetCloudState.refreshing,
@@ -706,47 +723,8 @@ internal fun PresetConfigPage(
                 collapseOnSelection = true,
             )
         },
-    ) { page ->
-        val tab = PresetTab.entries[page]
-        val source = tab.sourceOf(localPresets, cloudPresets)
-        val sortedPresets = remember(tab, source) { sortPresets(source, tab.order) }
-        val filteredPresets = remember(sortedPresets, keyword) {
-            if (keyword.isBlank()) sortedPresets else sortedPresets.filter { it.matchesQuery(keyword) }
-        }
-        // 首次加载云端列表时暂缓显示空态。
-        val emptyHintVisible = keyword.isNotBlank() || tab == PresetTab.Mine || PresetCloudState.loaded
-        val emptyLabel = stringResource(R.string.preset_list_empty)
-        val pageItems: LazyGridScope.() -> Unit = {
-            items(filteredPresets, key = { it.id }) { preset ->
-                PresetConfigCard(
-                    preset = preset,
-                    showDownloads = !preset.local || preset.hubId.isNotBlank(),
-                    wide = wideScreen,
-                    badge = preset.presetBadgeSpec(hubCachedVersions[preset.id])
-                        ?.let { PresetCardBadge(it.icon, presetBadgeColor(it.tone)) },
-                    onClick = {
-                        browserImport = false
-                        applyTarget = preset
-                        applySheetShown = true
-                    },
-                )
-            }
-            if (filteredPresets.isEmpty() && emptyHintVisible) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = emptyLabel,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
-                    }
-                }
-            }
-        }
-        pageItems
-    }
+        content = presetItems,
+    )
 
     NewPresetBottomSheet(
         show = showNewSheet,
@@ -766,8 +744,6 @@ internal fun PresetConfigPage(
             )
             PresetStore.saveLocal(context, preset)
             reload++
-            // 新建的只会落在「我的」：留在热门 / 最新会让人以为没保存成功。
-            selectTab(PresetTab.Mine)
             showNewSheet = false
         },
     )
@@ -788,7 +764,6 @@ internal fun PresetConfigPage(
         ApplyPresetBottomSheet(
             show = applySheetShown,
             preset = preset,
-            browserImport = browserImport,
             onDismiss = { applySheetShown = false },
             onDismissFinished = {
                 applyTarget = null
@@ -1131,7 +1106,7 @@ private fun PresetConfirmDialog(
                 onClick = onConfirm,
                 modifier = Modifier.weight(1f),
             ) {
-                Text(stringResource(R.string.confirm))
+                Text(stringResource(R.string.preset_confirm))
             }
             AppActionButton(
                 onClick = onDismiss,
@@ -1178,12 +1153,12 @@ private fun NewPresetBottomSheet(
         backgroundColor = presetSheetColor(),
         insideMargin = DpSize(12.dp, 0.dp),
         startAction = {
-            AppModalIconButton(onClick = onDismiss) {
+            IconButton(onClick = onDismiss) {
                 Icon(MiuixIcons.Basic.Close, contentDescription = stringResource(R.string.close))
             }
         },
         endAction = {
-            AppModalIconButton(onClick = ::save, enabled = canSave) {
+            IconButton(onClick = ::save, enabled = canSave) {
                 Icon(MiuixIcons.Basic.Check, contentDescription = stringResource(R.string.save))
             }
         },
@@ -1206,7 +1181,7 @@ private fun NewPresetBottomSheet(
                         value = titleInput,
                         onValueChange = { if (it.length <= PRESET_TITLE_MAX) titleInput = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = stringResource(R.string.field_title),
+                        label = stringResource(R.string.preset_field_title),
                         useLabelAsPlaceholder = true,
                         singleLine = true,
                         colors = presetTextFieldColors(),
@@ -1283,7 +1258,6 @@ private fun NewPresetBottomSheet(
 private fun ApplyPresetBottomSheet(
     show: Boolean,
     preset: ConfigPreset,
-    browserImport: Boolean,
     onDismiss: () -> Unit,
     onDismissFinished: () -> Unit,
     onDeleteConfirmed: () -> Unit,
@@ -1335,7 +1309,7 @@ private fun ApplyPresetBottomSheet(
         // 命中本地缓存就不再联网，避免每次点进来都下载。缓存序列化放到 IO 线程。
         // 刻意不把列表版本传进去：缓存版本落后时保留旧正文，由用户点「更新配置」手动更新，
         // 而不是一打开 sheet 就被静默换成新版本。
-        val cached = if (browserImport) null else withContext(Dispatchers.IO) {
+        val cached = withContext(Dispatchers.IO) {
             PresetStore.cachedHubPreset(context, preset.id)
         }
         if (cached != null) {
@@ -1346,10 +1320,7 @@ private fun ApplyPresetBottomSheet(
         }
         downloading = true
         downloadFailed = false
-        runCatching {
-            val deviceId = if (browserImport) withContext(Dispatchers.IO) { PresetStore.deviceId(context) } else null
-            HubClient.detail(preset, deviceId)
-        }
+        runCatching { HubClient.detail(preset) }
             .onSuccess { detail ->
                 withContext(Dispatchers.IO) { PresetStore.cacheHubPreset(context, detail) }
                 resolved = detail
@@ -1359,7 +1330,6 @@ private fun ApplyPresetBottomSheet(
     }
 
     val effective = editedPreset ?: resolved ?: preset
-    val displayPreset = if (browserImport) effective else preset
     // 空 JSON / 空配置的分节直接隐藏，不参与展示与应用。
     val includedIds = remember(effective) {
         effective.sections.filterValues { it.length() > 0 }.keys.toList()
@@ -1375,7 +1345,7 @@ private fun ApplyPresetBottomSheet(
         effective.sections.mapValues { (id, values) -> appSectionCount(id, values) }
     }
     // 云端列表 / 详情返回的是 ISO8601 字符串，HubClient 已转为 epoch 毫秒；这里再转本地可读时间。
-    val createdLabel = remember(displayPreset.createdAt) { formatPresetTime(displayPreset.createdAt) }
+    val createdLabel = remember(preset.createdAt) { formatPresetTime(preset.createdAt) }
     // 本机缓存正文落后于云端列表版本：只在详情里给一个手动更新入口，
     // 不再自动把缓存换成新版本（用户可能就是想沿用旧配置）。
     val hasUpdate = !preset.local && cachedVersion.isNotBlank() &&
@@ -1482,13 +1452,13 @@ private fun ApplyPresetBottomSheet(
 
     AppBottomSheet(
         show = show,
-        title = displayPreset.title.ifBlank { stringResource(R.string.preset_page_title) },
+        title = preset.title,
         backgroundColor = presetSheetColor(),
         insideMargin = DpSize(12.dp, 0.dp),
         startAction = {
             // 仅本地预设显示左上角关闭图标。
             if (preset.local) {
-                AppModalIconButton(onClick = onDismiss) {
+                IconButton(onClick = onDismiss) {
                     Icon(MiuixIcons.Basic.Close, contentDescription = stringResource(R.string.close))
                 }
             }
@@ -1497,7 +1467,7 @@ private fun ApplyPresetBottomSheet(
         // 删除必须先过一次确认弹窗，避免误触后连云端那条也再也改不动。
         endAction = {
             if (preset.local && view == PresetSheetView.Detail) {
-                AppModalIconButton(onClick = { showDeleteConfirm = true }) {
+                IconButton(onClick = { showDeleteConfirm = true }) {
                     Icon(
                         imageVector = MiuixIcons.Delete,
                         contentDescription = stringResource(R.string.preset_delete),
@@ -1670,7 +1640,7 @@ private fun ApplyPresetBottomSheet(
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             savedMessage.takeIf { it }?.let {
                                 Text(
-                                    text = stringResource(R.string.saved),
+                                    text = stringResource(R.string.preset_saved),
                                     style = MiuixTheme.textStyles.footnote1,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
@@ -1710,10 +1680,10 @@ private fun ApplyPresetBottomSheet(
                     // 详情卡片的条目：左列标签、右列内容、可选的强调色（只有状态 / 原因需要着色）。
                     // 顺序固定为「介绍 → 时间 → 版本 → 状态 → 原因」，缺失的条目直接不进列表。
                     val detailRows = ArrayList<Triple<String, String, Color?>>()
-                    if (displayPreset.content.isNotBlank()) {
+                    if (preset.content.isNotBlank()) {
                         detailRows += Triple(
                             stringResource(R.string.preset_field_description),
-                            displayPreset.content,
+                            preset.content,
                             null,
                         )
                     }
@@ -1736,7 +1706,7 @@ private fun ApplyPresetBottomSheet(
                                 HUB_STATUS_PENDING -> stringResource(R.string.preset_status_pending)
                                 HUB_STATUS_PUBLISHED -> stringResource(R.string.preset_status_published)
                                 HUB_STATUS_REJECTED -> stringResource(R.string.preset_status_rejected)
-                                else -> stringResource(R.string.unknown)
+                                else -> stringResource(R.string.preset_status_unknown)
                             }
                         }
                         val statusTint = when (preset.hubStatus) {
@@ -1850,7 +1820,7 @@ private fun ApplyPresetBottomSheet(
                                     onClick = { downloadAttempt++ },
                                     colors = ButtonDefaults.buttonColorsPrimary(),
                                 ) {
-                                    Text(stringResource(R.string.retry))
+                                    Text(stringResource(R.string.preset_retry))
                                 }
                             }
                         }
@@ -1964,7 +1934,7 @@ private fun ApplyPresetBottomSheet(
                                                 modifier = Modifier.weight(1f),
                                                 colors = ButtonDefaults.buttonColorsPrimary(),
                                             ) {
-                                                Text(stringResource(R.string.apply))
+                                                Text(stringResource(R.string.preset_apply))
                                             }
                                         }
                                     } else {
@@ -1985,7 +1955,7 @@ private fun ApplyPresetBottomSheet(
                                                 modifier = Modifier.weight(1f),
                                                 colors = ButtonDefaults.buttonColorsPrimary(),
                                             ) {
-                                                Text(stringResource(R.string.apply))
+                                                Text(stringResource(R.string.preset_apply))
                                             }
                                         }
                                     }

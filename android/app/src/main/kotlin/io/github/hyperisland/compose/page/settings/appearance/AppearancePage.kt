@@ -182,6 +182,7 @@ internal fun AppearancePage(
                     AppearanceSection.Icon -> AppearanceIconPage(prefs, ::closeSection)
                     AppearanceSection.Outline -> AppearanceOutlinePage(prefs, ::closeSection)
                     AppearanceSection.Animation -> AppearanceAnimationPage(prefs, ::closeSection)
+                    AppearanceSection.Brackets -> AppearanceBracketsPage(prefs, ::closeSection)
                     AppearanceSection.MoreUi -> AppearanceMoreUiPage(prefs, ::closeSection)
                     null -> Unit
                 }

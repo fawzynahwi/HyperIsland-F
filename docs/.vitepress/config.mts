@@ -152,8 +152,7 @@ function sidebar(lang: string) {
           { text: '构建指南', link: '/build' },
           { text: '贡献指南', link: '/contribute' },
           { text: '隐私说明', link: '/privacy' },
-          { text: '捐赠名单', link: '/donors' },
-          { text: '云端预设', link: '/cloud-presets' }
+          { text: '捐赠名单', link: '/donors' }
         ]
       }
     ]
@@ -174,8 +173,7 @@ function sidebar(lang: string) {
         { text: 'Build Guide', link: '/en/build' },
         { text: 'Contributing', link: '/en/contribute' },
         { text: 'Privacy', link: '/en/privacy' },
-        { text: 'Donors', link: '/en/donors' },
-        { text: 'Cloud Presets', link: '/en/cloud-presets' }
+        { text: 'Donors', link: '/en/donors' }
       ]
     }
   ]

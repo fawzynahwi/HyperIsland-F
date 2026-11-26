@@ -145,11 +145,7 @@ private data class RootDestination(@StringRes val title: Int, val icon: ImageVec
 private enum class ThemeSubpage { BlurEffects, Wallpaper }
 
 @Composable
-internal fun HyperIslandApp(
-    prefs: FlutterPrefsRepository,
-    presetImportId: String?,
-    onPresetImportOpened: (String) -> Unit,
-) {
+internal fun HyperIslandApp(prefs: FlutterPrefsRepository) {
     val context = LocalContext.current
     val destinations = remember {
         listOf(
@@ -203,26 +199,6 @@ internal fun HyperIslandApp(
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
     var bottomBarComposed by remember { mutableStateOf(true) }
     val density = LocalDensity.current
-
-    fun openSettingsDetail(detail: SettingsDetail) {
-        batchChannelTarget = null
-        batchToastPackages = null
-        visibleChannelApp = null
-        visibleToastApp = null
-        visibleChannelEditor = null
-        mediaShown = false
-        materialShown = false
-        sceneBrightnessShown = false
-        themeSubpageShown = false
-        extensionDetail = null
-        extensionSubDetail = null
-        visibleDetail = detail
-        detailShown = true
-    }
-
-    LaunchedEffect(presetImportId) {
-        if (presetImportId != null) openSettingsDetail(SettingsDetail.Preset)
-    }
 
     @Composable
     fun RootBottomBar(enabled: Boolean = true) {
@@ -468,9 +444,6 @@ internal fun HyperIslandApp(
                                 )
                                 1 -> AppsPage(
                                     prefs = prefs,
-                                    // targetPage 在切换动画一开始就更新，菜单能立刻收起，
-                                    // 不会在新页面上多浮半段动画。
-                                    isActive = pagerState.targetPage == page,
                                     selectedMode = appsSelectedMode,
                                     onSelectedModeChange = { appsSelectedMode = it },
                                     onOpenChannels = { app ->
@@ -508,7 +481,16 @@ internal fun HyperIslandApp(
                                 )
                                 2 -> SettingsPage(
                                     prefs = prefs,
-                                    onOpenDetail = ::openSettingsDetail,
+                                    onOpenDetail = {
+                                        batchChannelTarget = null
+                                        batchToastPackages = null
+                                        visibleChannelApp = null
+                                        visibleToastApp = null
+                                        extensionDetail = null
+                                        extensionSubDetail = null
+                                        visibleDetail = it
+                                        detailShown = true
+                                    },
                                 )
                                 else -> AboutPage(
                                     isActive = pagerState.currentPage == page,
@@ -644,12 +626,7 @@ internal fun HyperIslandApp(
                                 )
                                 SettingsDetail.HideBehavior -> HideBehaviorPage(prefs, ::closeDetail)
                                 SettingsDetail.DefaultConfig -> DefaultConfigPage(prefs, ::closeDetail)
-                                SettingsDetail.Preset -> PresetConfigPage(
-                                    prefs = prefs,
-                                    onBack = ::closeDetail,
-                                    presetImportId = presetImportId.takeIf { detailShown },
-                                    onPresetImportOpened = onPresetImportOpened,
-                                )
+                                SettingsDetail.Preset -> PresetConfigPage(prefs = prefs, onBack = ::closeDetail)
                                 SettingsDetail.AiConfig -> AiConfigPage(prefs, ::closeDetail)
                                 SettingsDetail.Misc -> MiscPage(
                                     prefs = prefs,

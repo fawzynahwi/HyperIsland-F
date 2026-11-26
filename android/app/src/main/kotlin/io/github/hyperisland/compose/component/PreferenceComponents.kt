@@ -494,7 +494,7 @@ internal fun SliderResetAction(
                 ) {
                     Icon(
                         imageVector = MiuixIcons.Refresh,
-                        contentDescription = stringResource(R.string.restore_default),
+                        contentDescription = stringResource(R.string.reset_default),
                         modifier = Modifier.size(17.dp),
                     )
                 }

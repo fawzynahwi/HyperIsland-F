@@ -33,7 +33,6 @@ import io.github.hyperisland.compose.component.parseHexColor
 import io.github.hyperisland.compose.component.toArgbHex
 import io.github.hyperisland.compose.data.DefaultConfigSettings
 import io.github.hyperisland.compose.data.toast.ToastSettingsPatch
-import io.github.hyperisland.compose.page.apps.defaultGlowLabel
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
@@ -93,7 +92,7 @@ internal fun ToastSettingsFormPage(
         isBatch,
         noChange,
         enabled,
-        stringResource(R.string.follow_system),
+        stringResource(R.string.status_bar_icon_system),
     )
     val glowValues = optionalValues(isBatch, TRI_DEFAULT, TRI_ON, TRI_OFF, TRI_FOLLOW_DYNAMIC)
     @Composable
@@ -118,7 +117,7 @@ internal fun ToastSettingsFormPage(
         isBatch,
         noChange,
         if (isBatch) default else stringResource(
-            R.string.default_with_value,
+            R.string.default_value,
             marqueeAutoHideLabel(defaults.marqueeAutoHide),
         ),
         disabled,
@@ -306,7 +305,7 @@ internal fun ToastSettingsFormPage(
         item {
             AnimatedVisibility(visible = forwardOptionsVisible) {
                 Column {
-                    SectionTitle(stringResource(R.string.outer_glow))
+                    SectionTitle(stringResource(R.string.glow))
                     AppCard {
                         FormDropdown(
                             title = stringResource(R.string.focus_notification),
@@ -423,7 +422,7 @@ internal fun ToastSettingsFormPage(
                     )
                 }
                 AppActionTextButton(
-                    text = stringResource(R.string.restore_default),
+                    text = stringResource(R.string.reset_default),
                     onClick = {
                         onStateChange(state.copy(timeout = TRI_DEFAULT))
                         showTimeoutDialog = false
@@ -617,6 +616,16 @@ private fun resolveDynamic(value: String?, defaultValue: Boolean): Boolean = whe
 }
 
 @Composable
+private fun defaultGlowLabel(defaultMode: String): String = when (defaultMode) {
+    TRI_ON -> stringResource(R.string.default_on)
+    TRI_FOLLOW_DYNAMIC -> stringResource(
+        R.string.default_value,
+        stringResource(R.string.follow_dynamic_color),
+    )
+    else -> stringResource(R.string.default_off)
+}
+
+@Composable
 private fun marqueeAutoHideLabel(value: String): String = when (value) {
     "1" -> stringResource(R.string.marquee_once)
     "2" -> stringResource(R.string.marquee_twice)
@@ -629,7 +638,7 @@ private fun marqueeAutoHideLabel(value: String): String = when (value) {
 private fun timeoutSummary(value: String?, defaultValue: Int, isBatch: Boolean, noChange: String): String = when {
     value == null && isBatch -> noChange
     value == TRI_DEFAULT -> stringResource(R.string.default_timeout_value, defaultValue)
-    else -> stringResource(R.string.seconds_value, value?.toIntOrNull() ?: defaultValue)
+    else -> stringResource(R.string.timeout_seconds_value, value?.toIntOrNull() ?: defaultValue)
 }
 
 private fun keywordSummary(values: List<String>?, isBatch: Boolean, noChange: String): String? = when {

@@ -18,8 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import io.github.hyperisland.compose.component.liquid.rememberCombinedBackdrop
-import io.github.hyperisland.compose.theme.LocalUiGlassSettings
-import io.github.hyperisland.compose.theme.UiGlassSettings
 import io.github.hyperisland.compose.theme.isGlassEnabled
 import io.github.hyperisland.compose.theme.uiGlassMaterial
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -87,8 +85,7 @@ internal fun AppDialog(
     onDismissFinished: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    val glassSettings = LocalUiGlassSettings.current
-    val glassEnabled = isGlassEnabled(glassSettings)
+    val glassEnabled = isGlassEnabled()
     AppModalSurface(show, onDismissFinished) { backdrop, capture, _, onHidden ->
         GlassDialog(
             show = show,
@@ -97,12 +94,12 @@ internal fun AppDialog(
             title = title,
             summary = summary,
             insideMargin = insideMargin,
-            material = uiGlassMaterial(GlassDialogDefaults.material(), glassSettings),
+            material = uiGlassMaterial(GlassDialogDefaults.material()),
             stroke = if (backdrop != null) GlassDialogDefaults.stroke() else null,
             onDismissRequest = { onDismissRequest?.invoke() },
             onDismissFinished = onHidden,
         ) {
-            ModalControlScope(glassEnabled, glassSettings, content)
+            ModalControlScope(glassEnabled, content)
         }
     }
 }
@@ -119,15 +116,14 @@ internal fun AppBottomSheet(
     onDismissFinished: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    val glassSettings = LocalUiGlassSettings.current
-    val glassEnabled = isGlassEnabled(glassSettings)
+    val glassEnabled = isGlassEnabled()
     val scopedStartAction: (@Composable () -> Unit)? = if (startAction != null) {
-        { ModalControlScope(glassEnabled, glassSettings, startAction) }
+        { ModalControlScope(glassEnabled, startAction) }
     } else {
         null
     }
     val scopedEndAction: (@Composable () -> Unit)? = if (endAction != null) {
-        { ModalControlScope(glassEnabled, glassSettings, endAction) }
+        { ModalControlScope(glassEnabled, endAction) }
     } else {
         null
     }
@@ -140,13 +136,13 @@ internal fun AppBottomSheet(
             startAction = scopedStartAction,
             endAction = scopedEndAction,
             containerColor = backgroundColor,
-            material = uiGlassMaterial(GlassBottomSheetDefaults.material(), glassSettings),
+            material = uiGlassMaterial(GlassBottomSheetDefaults.material()),
             stroke = if (backdrop != null) GlassBottomSheetDefaults.stroke() else null,
             insideMargin = insideMargin,
             onDismissRequest = onDismissRequest,
             onDismissFinished = onHidden,
         ) {
-            ModalControlScope(glassEnabled, glassSettings) {
+            ModalControlScope(glassEnabled) {
                 CompositionLocalProvider(LocalAppModalIsTopmost provides isTopmost, content = content)
             }
         }
@@ -155,15 +151,10 @@ internal fun AppBottomSheet(
 
 // Miuix invokes these slots from its root popup host, outside the caller's composition locals.
 @Composable
-private fun ModalControlScope(
-    glassEnabled: Boolean,
-    glassSettings: UiGlassSettings,
-    content: @Composable () -> Unit,
-) {
+private fun ModalControlScope(glassEnabled: Boolean, content: @Composable () -> Unit) {
     CompositionLocalProvider(
         LocalWallpaperCardBackdrop provides null,
         LocalModalGlassEnabled provides glassEnabled,
-        LocalUiGlassSettings provides glassSettings,
         content = content,
     )
 }

@@ -492,7 +492,7 @@ internal class LockscreenWidgetPageView(context: Context) : FrameLayout(context)
         context.createPackageContext(
             "io.github.hyperisland",
             Context.CONTEXT_IGNORE_SECURITY,
-        ).getString(R.string.lockscreen_widgets)
+        ).getString(R.string.lockscreen_widgets_title_default)
     }.getOrDefault("Widgets")
 
     private fun secondaryTextColor(): Int = if (isDarkMode()) {

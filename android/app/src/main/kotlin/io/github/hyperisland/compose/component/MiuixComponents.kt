@@ -14,9 +14,6 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
@@ -36,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import io.github.hyperisland.R
 import io.github.hyperisland.compose.theme.LocalAppWallpaper
-import io.github.hyperisland.compose.theme.LocalTopBarGlassEnabled
 import io.github.hyperisland.compose.theme.LocalUiGlassSettings
 import io.github.hyperisland.compose.theme.uiGlassMaterial
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -76,8 +72,7 @@ internal fun PageTopAppBar(
     actions: @Composable RowScope.() -> Unit = {},
     bottomContent: @Composable () -> Unit = {},
 ) {
-    // 顶栏通透模糊可单独关闭（主题 → 模糊效果调节 → 顶栏），关闭后回退为顶层色带，不采样页面内容。
-    val backdrop = if (LocalTopBarGlassEnabled.current) uiGlassBackdrop() else null
+    val backdrop = uiGlassBackdrop()
     val scrolled = remember(scrollBehavior) {
         derivedStateOf { (scrollBehavior?.state?.contentOffset ?: 0f) < 0f }
     }
@@ -128,8 +123,7 @@ internal fun PageTabRow(
     modifier: Modifier = Modifier,
 ) {
     val glass = LocalUiGlassSettings.current
-    // 顶栏内控件跟随顶栏开关，与 PageTopAppBar 保持一致。
-    val backdrop = if (LocalTopBarGlassEnabled.current) uiGlassBackdrop() else null
+    val backdrop = uiGlassBackdrop()
     val tint = MiuixTheme.colorScheme.surface
     val fallbackBackdrop = remember(tint) { TintBackdrop(tint) }
     // The native tab track inherits a fixed action-bar underlay. Draw our material separately.
@@ -334,7 +328,6 @@ internal fun DetailPage(
 internal fun DetailGridPage(
     title: String,
     onBack: () -> Unit,
-    pagerState: PagerState,
     columns: GridCells = GridCells.Adaptive(minSize = 128.dp),
     horizontalContentPadding: Dp = 16.dp,
     topContentPadding: Dp = 8.dp,
@@ -345,7 +338,7 @@ internal fun DetailGridPage(
     isRefreshing: Boolean = false,
     onRefresh: (() -> Unit)? = null,
     overlay: @Composable BoxScope.() -> Unit = {},
-    pageContent: @Composable (Int) -> LazyGridScope.() -> Unit,
+    content: LazyGridScope.() -> Unit,
 ) {
     val scrollBehavior = MiuixScrollBehavior()
     BarBlurHost {
@@ -366,23 +359,6 @@ internal fun DetailGridPage(
             },
             snackbarHost = snackbarHost,
         ) { padding ->
-            val pager: @Composable () -> Unit = {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                    beyondViewportPageCount = 1,
-                ) { page ->
-                    PageGrid(
-                        padding = padding,
-                        scrollBehavior = scrollBehavior,
-                        columns = columns,
-                        horizontalContentPadding = horizontalContentPadding,
-                        topContentPadding = topContentPadding,
-                        bottomContentPadding = bottomContentPadding,
-                        content = pageContent(page),
-                    )
-                }
-            }
             BarBackdropContent(modifier = Modifier.fillMaxSize()) {
                 if (onRefresh != null) {
                     PullToRefresh(
@@ -392,9 +368,27 @@ internal fun DetailGridPage(
                         topAppBarScrollBehavior = scrollBehavior,
                         contentPadding = PaddingValues(top = padding.calculateTopPadding()),
                         refreshTexts = listOf("", "", "", ""),
-                    ) { pager() }
+                    ) {
+                        PageGrid(
+                            padding = padding,
+                            scrollBehavior = scrollBehavior,
+                            columns = columns,
+                            horizontalContentPadding = horizontalContentPadding,
+                            topContentPadding = topContentPadding,
+                            bottomContentPadding = bottomContentPadding,
+                            content = content,
+                        )
+                    }
                 } else {
-                    pager()
+                    PageGrid(
+                        padding = padding,
+                        scrollBehavior = scrollBehavior,
+                        columns = columns,
+                        horizontalContentPadding = horizontalContentPadding,
+                        topContentPadding = topContentPadding,
+                        bottomContentPadding = bottomContentPadding,
+                        content = content,
+                    )
                 }
             }
         }
@@ -414,7 +408,6 @@ private fun PageGrid(
 ) {
     LazyVerticalGrid(
         columns = columns,
-        state = rememberLazyGridState(),
         modifier = Modifier
             .fillMaxSize()
             .overScrollVertical()
